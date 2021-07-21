@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,10 +58,38 @@ testID   1.1.1.1    testHost   0     ./testCmd -f testArgs
 		t.Run(name, func(t *testing.T) {
 			f := func() { c.ListAgents(tt.input) }
 			output := captureStdout(f)
-			fmt.Println(output)
 			assert.Equal(t, output, tt.expected)
 		})
 	}
+}
+
+func TestClientProfile(t *testing.T) {
+	mockAgents := `{"profile": "mode: count\nmockService/main.go:30.13,48.33 13 1\nb/b.go:30.13,48.33 13 1"}`
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockAgents))
+	}))
+	defer mockServer.Close()
+
+	c := NewWorker(mockServer.URL)
+	f := func() { c.Profile("") }
+	output := captureStdout(f)
+	assert.Regexp(t, "mockService/main.go:30.13,48.33 13 1", output)
+}
+
+func TestClientProfile_Output(t *testing.T) {
+	mockAgents := `{"profile": "mode: count\nmockService/main.go:30.13,48.33 13 1\nb/b.go:30.13,48.33 13 1"}`
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockAgents))
+	}))
+	defer mockServer.Close()
+
+	c := NewWorker(mockServer.URL)
+	fileName := "a.txt"
+	c.Profile(fileName)
+	defer os.RemoveAll(fileName)
+	assert.FileExists(t, fileName)
 }
 
 func TestClientDo(t *testing.T) {
